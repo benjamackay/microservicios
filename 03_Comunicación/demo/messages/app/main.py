@@ -1,23 +1,37 @@
 """Servicio dueño de mensajes; usa APIs públicas para validar referencias."""
 import os
-import json
+import threading
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 from uuid import uuid4
 
-import pika
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 from pymongo import MongoClient
 
-app = FastAPI(title="Chat Messages", version="1.0.0")
+from .outbox import relay
+
+stop = threading.Event()
+
+
+@asynccontextmanager
+async def lifespan(app):
+    database.command("ping")
+    stop.clear()
+    thread = threading.Thread(target=relay, args=(messages, stop), daemon=True)
+    thread.start()
+    yield
+    stop.set()
+    thread.join(timeout=6)
+
+
+app = FastAPI(title="Chat Messages", version="1.0.0", lifespan=lifespan)
 database = MongoClient(os.environ["MONGODB_URL"]).chat_messages
 messages = database.messages
-events: list[dict] = []
 USERS_URL = os.environ.get("USERS_URL", "http://users:8000")
 CHANNELS_URL = os.environ.get("CHANNELS_URL", "http://channels:8000")
-RABBITMQ_URL = os.environ.get("RABBITMQ_URL")
 
 
 class MessageCreate(BaseModel):
@@ -37,26 +51,6 @@ def resource_exists(base_url: str, path: str) -> bool:
         raise HTTPException(status_code=503, detail="Dependent service unavailable")
 
 
-def publish(event_type: str, subject_id: str, data: dict) -> None:
-    event = {"type": event_type, "subject_id": subject_id,
-             "occurred_at": datetime.now(timezone.utc).isoformat(),
-             "data": data}
-    events.append(event)
-    if RABBITMQ_URL:
-        try:
-            connection = pika.BlockingConnection(
-                pika.URLParameters(RABBITMQ_URL))
-            channel = connection.channel()
-            channel.exchange_declare(exchange="chat", exchange_type="topic")
-            channel.basic_publish(exchange="chat", routing_key=event_type,
-                                  body=json.dumps(event))
-            connection.close()
-        except pika.exceptions.AMQPError:
-            # La lista local conserva el evento para el ejemplo de Unidad 3.
-            # En producción este fallo se tratará con outbox/reintentos.
-            pass
-
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -71,16 +65,20 @@ def create_message(channel_id: str, body: MessageCreate):
     message = {"id": str(uuid4()), "channel_id": channel_id,
                "created_at": datetime.now(timezone.utc).isoformat(),
                **body.model_dump()}
-    messages.insert_one(message)
-    publish("chat.message.created", message["id"], message)
+    event = {"id": str(uuid4()), "type": "chat.message.created",
+             "subject_id": message["id"], "occurred_at": message["created_at"],
+             "data": message.copy(), "published": False}
+    # Una única escritura persiste mensaje y evento; no requiere replica set.
+    messages.insert_one({**message, "event": event})
     return message
 
 
 @app.get("/api/v1/channels/{channel_id}/messages")
 def list_messages(channel_id: str):
-    return list(messages.find({"channel_id": channel_id}, {"_id": 0}))
+    return list(messages.find({"channel_id": channel_id}, {"_id": 0, "event": 0}))
 
 
 @app.get("/api/v1/events")
 def list_events():
-    return events
+    return [doc["event"] for doc in messages.find(
+        {"event": {"$exists": True}}, {"_id": 0, "event": 1}).sort("created_at", -1).limit(100)]

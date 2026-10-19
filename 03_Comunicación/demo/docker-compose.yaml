@@ -31,8 +31,63 @@ services:
       USERS_URL: http://users:8000
       CHANNELS_URL: http://channels:8000
       MONGODB_URL: mongodb://messages-mongodb:27017
+      RABBITMQ_URL: amqp://chat:chat@rabbitmq:5672/%2F
+    depends_on:
+      messages-mongodb:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - microsvcs
+
+  media:
+    build: ./media
+    ports:
+      - "8004:8000"
+    environment:
+      MONGODB_URL: mongodb://media-mongodb:27017
+      USERS_URL: http://users:8000
+      CHANNELS_URL: http://channels:8000
+      RABBITMQ_URL: amqp://chat:chat@rabbitmq:5672/%2F
+      MEDIA_STORAGE: /media-storage
+      MAX_FILE_BYTES: ${MAX_FILE_BYTES:-10485760}
+      CHANNEL_QUOTA_BYTES: ${CHANNEL_QUOTA_BYTES:-104857600}
+      CHANNEL_MAX_FILES: ${CHANNEL_MAX_FILES:-1000}
+      PREVIEW_CACHE_SECONDS: ${PREVIEW_CACHE_SECONDS:-86400}
+      PREVIEW_MAX_ATTEMPTS: ${PREVIEW_MAX_ATTEMPTS:-3}
+    volumes:
+      - media-storage:/media-storage
+    depends_on:
+      media-mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [microsvcs]
+
+  media-mongodb:
+    image: mongo:7
+    volumes: [media-data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [microsvcs]
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: chat
+      RABBITMQ_DEFAULT_PASS: chat
+    ports:
+      - "127.0.0.1:15672:15672"
+    volumes: [rabbitmq-data:/var/lib/rabbitmq]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks: [microsvcs]
 
   users-mongodb:
     image: mongo:7
@@ -45,12 +100,20 @@ services:
   messages-mongodb:
     image: mongo:7
     volumes: [messages-data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     networks: [microsvcs]
 
 volumes:
   users-data:
   channels-data:
   messages-data:
+  media-data:
+  media-storage:
+  rabbitmq-data:
 
 networks:
   microsvcs:

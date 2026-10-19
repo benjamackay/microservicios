@@ -31,7 +31,7 @@ def health():
 @app.post("/api/v1/channels", status_code=status.HTTP_201_CREATED)
 def create_channel(body: ChannelCreate):
     channel = {"id": str(uuid4()), **body.model_dump()}
-    channels.insert_one(channel)
+    channels.insert_one(channel.copy())
     publish("chat.channel.created", channel["id"], channel)
     return channel
 

@@ -9,6 +9,7 @@ independientes, cada uno dueño de sus datos:
 | `users` | 8001 | Crear y consultar usuarios |
 | `channels` | 8002 | Crear y consultar canales |
 | `messages` | 8003 | Crear y listar mensajes |
+| `media` | 8004 | Adjuntos, galería por canal, cuotas y previews OpenGraph |
 
 La documentación OpenAPI de cada servicio está disponible en
 `http://localhost:{8001,8002,8003}/docs`. El servicio `messages` consulta las
@@ -17,6 +18,15 @@ mensaje. Ningún servicio accede a los datos internos de otro.
 
 Cada servicio usa su propia instancia MongoDB y volumen Docker: `users-data`,
 `channels-data` y `messages-data`.
+
+La extensión Media agrega `media-data`, el volumen binario `media-storage` y
+RabbitMQ con su volumen `rabbitmq-data`. Messages publica eventos mediante un
+outbox persistente y Media consume `chat.message.created` en segundo plano.
+Las rutas originales de usuarios, canales y mensajes conservan sus contratos.
+
+Consulta [Media: ejecución, contratos, límites y pruebas](media/README.md).
+Swagger de Media: http://localhost:8004/docs. Sus operaciones requieren el header
+`X-User-Id` de un usuario existente (identificación de demo, no autenticación).
 
 ## Cómo extenderla
 

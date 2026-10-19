@@ -31,7 +31,7 @@ def health():
 @app.post("/api/v1/users", status_code=status.HTTP_201_CREATED)
 def create_user(body: UserCreate):
     user = {"id": str(uuid4()), **body.model_dump()}
-    users.insert_one(user)
+    users.insert_one(user.copy())
     publish("chat.user.created", user["id"], user)
     return user
 
