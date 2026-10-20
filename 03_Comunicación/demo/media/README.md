@@ -138,6 +138,13 @@ python -m pytest tests -q
 python smoke.py
 ```
 
+Para una muestra narrada de las diapositivas 10 y 11, ejecuta `python demo.py`.
+Crea a Benjamín y Manuel, un canal, un reporte de texto y un mensaje con enlace;
+muestra cada petición y su respuesta, verifica la descarga y consulta el preview.
+Conserva los datos e imprime sus IDs para explorarlos después en Swagger.
+Cada ejecución crea un nuevo escenario. Usa un TXT en lugar del PDF ilustrativo
+de las diapositivas; el flujo de transferencia es el mismo.
+
 `smoke.py` crea dos usuarios y un canal, sube un PDF, verifica hash, galería,
 descarga por el segundo usuario, borrado por propietario y liberación de cuota.
 Después publica una URL y espera el preview creado mediante RabbitMQ, comprobando

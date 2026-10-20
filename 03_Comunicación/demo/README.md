@@ -1,5 +1,15 @@
 # Base común: Chat en microservicios
 
+Desde esta carpeta (`03_Comunicación/demo`), con Docker iniciado y GNU Make instalado:
+
+```sh
+make up    # Construye y levanta la demo en segundo plano
+make down  # Detiene y elimina los contenedores; conserva los datos
+```
+
+Estos comandos administran la demo completa: Users, Channels, Messages, Media,
+sus bases de datos y RabbitMQ. `make down` conserva los volúmenes persistentes.
+
 Esta es la base funcional entregada al inicio de la Unidad 3. Los equipos la
 levantan con `docker compose up --build`. Está formada por tres microservicios
 independientes, cada uno dueño de sus datos:
