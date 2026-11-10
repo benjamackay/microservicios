@@ -8,6 +8,7 @@ from urllib.request import urlopen
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pymongo import MongoClient
 
@@ -28,6 +29,8 @@ async def lifespan(app):
 
 
 app = FastAPI(title="Chat Messages", version="1.0.0", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:8004", "http://127.0.0.1:8004"],
+                   allow_methods=["GET", "POST"], allow_headers=["Content-Type"])
 database = MongoClient(os.environ["MONGODB_URL"]).chat_messages
 messages = database.messages
 USERS_URL = os.environ.get("USERS_URL", "http://users:8000")

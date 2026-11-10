@@ -11,8 +11,10 @@ from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
 import httpx
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, UploadFile
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 
@@ -27,6 +29,8 @@ QUOTA = int(os.getenv("CHANNEL_QUOTA_BYTES", "104857600"))
 MAX_ITEMS = int(os.getenv("CHANNEL_MAX_FILES", "1000"))
 USERS_URL = os.getenv("USERS_URL", "http://users:8000")
 CHANNELS_URL = os.getenv("CHANNELS_URL", "http://channels:8000")
+SUMMARIES_URL = os.getenv("SUMMARIES_URL", "http://summaries:8000").rstrip("/")
+POLLS_URL = os.getenv("POLLS_URL", "http://polls-api:8004").rstrip("/")
 stop = threading.Event()
 
 
@@ -165,6 +169,8 @@ async def lifespan(app):
 
 app = FastAPI(title="Chat Media", version="1.0.0", lifespan=lifespan,
     description="Adjuntos y previews. X-User-Id identifica un usuario de la demo; no es autenticación.")
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:8004", "http://127.0.0.1:8004"],
+                   allow_methods=["GET", "POST", "DELETE"], allow_headers=["Content-Type", "X-User-Id"])
 
 
 @app.get("/health")
@@ -174,6 +180,73 @@ def health():
     except Exception:
         raise HTTPException(503, "MongoDB no disponible")
     return {"status": "ok"}
+
+
+def forward_to_service(base: str, method: str, path: str, payload: dict | None = None):
+    try:
+        response = httpx.request(method, f"{base}{path}", json=payload, timeout=15)
+    except httpx.HTTPError as error:
+        raise HTTPException(503, "El servicio integrado no está disponible") from error
+    try:
+        result = response.json()
+    except ValueError:
+        result = {"detail": response.text or "Respuesta inválida del servicio integrado"}
+    if not response.is_success:
+        detail = result.get("detail", "El servicio integrado rechazó la solicitud") if isinstance(result, dict) else result
+        raise HTTPException(response.status_code, detail)
+    return result
+
+
+@app.post("/api/v1/ui/channels/{channel_id}/summaries", status_code=202)
+def ui_request_summary(channel_id: str, user: User, body: dict | None = Body(default=None)):
+    channel_id = validate_channel(channel_id)
+    request_body = body or {}
+    if set(request_body) - {"timeInterval"}:
+        raise HTTPException(422, "El cuerpo solo admite timeInterval")
+    request_body["user_id"] = user
+    return forward_to_service(SUMMARIES_URL, "POST", f"/api/v1/channels/{channel_id}/summaries", request_body)
+
+
+@app.get("/api/v1/ui/channels/{channel_id}/summaries")
+def ui_list_summaries(channel_id: str, user: User):
+    channel_id = validate_channel(channel_id)
+    return forward_to_service(SUMMARIES_URL, "GET", f"/api/v1/channels/{channel_id}/summaries")
+
+
+@app.get("/api/v1/ui/summaries/{summary_id}")
+def ui_get_summary(summary_id: str, user: User):
+    summary_id = identifier(summary_id)
+    return forward_to_service(SUMMARIES_URL, "GET", f"/api/v1/summaries/{summary_id}")
+
+
+@app.post("/api/v1/ui/channels/{channel_id}/polls")
+def ui_create_poll(channel_id: str, user: User, body: dict = Body(...)):
+    channel_id = validate_channel(channel_id)
+    if set(body) - {"question", "options", "duration_minutes"}:
+        raise HTTPException(422, "El cuerpo de la encuesta contiene campos no admitidos")
+    payload = {**body, "channel_id": channel_id, "author_id": user}
+    return forward_to_service(POLLS_URL, "POST", "/api/v1/polls", payload)
+
+
+@app.get("/api/v1/ui/polls/{poll_id}")
+def ui_get_poll(poll_id: str, user: User):
+    poll_id = identifier(poll_id)
+    return forward_to_service(POLLS_URL, "GET", f"/api/v1/polls/{poll_id}")
+
+
+@app.post("/api/v1/ui/polls/{poll_id}/votes")
+def ui_vote_poll(poll_id: str, user: User, body: dict = Body(...)):
+    poll_id = identifier(poll_id)
+    if set(body) != {"option_id"}:
+        raise HTTPException(422, "La votación debe incluir option_id")
+    payload = {"option_id": body["option_id"], "voter_id": user}
+    return forward_to_service(POLLS_URL, "POST", f"/api/v1/polls/{poll_id}/votes", payload)
+
+
+@app.post("/api/v1/ui/polls/{poll_id}/close")
+def ui_close_poll(poll_id: str, user: User):
+    poll_id = identifier(poll_id)
+    return forward_to_service(POLLS_URL, "POST", f"/api/v1/polls/{poll_id}/close", {"author_id": user})
 
 
 @app.post("/api/v1/channels/{channel_id}/attachments", status_code=201)
@@ -300,6 +373,11 @@ def events(user: User, limit: Annotated[int, Query(ge=1, le=100)] = 20):
 
 
 @app.get("/api/v1/links/jobs")
-def jobs(user: User, channel_id: str, limit: Annotated[int, Query(ge=1, le=100)] = 20):
+def jobs(user: User, channel_id: str, limit: Annotated[int, Query(ge=1, le=100)] = 20,
+         offset: Annotated[int, Query(ge=0)] = 0):
     channel_id = validate_channel(channel_id)
-    return list(db.links.find({"channel_id": channel_id}, {"_id": 0, "outbox": 0}).sort("created_at", -1).limit(limit))
+    return list(db.links.find({"channel_id": channel_id}, {"_id": 0, "outbox": 0})
+                .sort("created_at", -1).skip(offset).limit(limit))
+
+
+app.mount("/", StaticFiles(directory=Path(__file__).resolve().parent.parent / "ui", html=True), name="media-ui")

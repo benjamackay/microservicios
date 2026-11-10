@@ -1,0 +1,6 @@
+[submodule "03_Comunicación/demo/peers/summaries-service"]
+	path = 03_Comunicación/demo/peers/summaries-service
+	url = https://github.com/marcel-silva27/summaries-service.git
+[submodule "03_Comunicación/demo/peers/polls-service"]
+	path = 03_Comunicación/demo/peers/polls-service
+	url = https://github.com/TomasCano-Usm/INF326-Microservicio-Polls.git

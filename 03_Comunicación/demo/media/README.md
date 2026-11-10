@@ -13,6 +13,7 @@ docker compose up -d --build
 ```
 
 - Swagger: http://localhost:8004/docs
+- Interfaz de chat tipo Slack: http://localhost:8004/
 - Salud de Media y su MongoDB: http://localhost:8004/health
 - RabbitMQ: http://localhost:15672 (usuario `chat`, contraseña `chat`, solo demo).
 
@@ -127,6 +128,22 @@ Variables configurables en Compose (bytes):
 Además: `MONGODB_URL`, `RABBITMQ_URL`, `USERS_URL`, `CHANNELS_URL` y
 `MEDIA_STORAGE`. Cambiar límites requiere recrear Media; no reducir cuotas por
 debajo del uso existente. La consulta de cuota informa el uso reservado actual.
+
+## Interfaz
+
+La interfaz en `ui/` se sirve desde el mismo origen de Media. Presenta canales y
+mensajes del chat; los adjuntos del canal aparecen como elementos en la línea de
+tiempo y cada URL del mensaje muestra su preview o estado de procesamiento. La
+vista reúne todas las páginas de adjuntos y trabajos. Permite seleccionar o crear
+perfiles de prueba y canales, enviar mensajes, compartir enlaces, subir y descargar
+archivos, borrarlos si se es uploader, filtrar la galería y revisar la cuota. La
+lista se actualiza cada cinco segundos. No tiene una aplicación ni dependencias
+de build separadas.
+
+Para poblar un escenario rápido: `python demo.py`. La interfaz usa el usuario
+activo del selector y el canal activo, sin copiar IDs en formularios. Las APIs
+de Users, Channels y Messages aceptan peticiones del origen `localhost:8004` y
+`127.0.0.1:8004` para esta interfaz de la demo.
 
 ## Verificar los dos flujos
 

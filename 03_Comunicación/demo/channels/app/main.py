@@ -4,10 +4,13 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pymongo import MongoClient
 
 app = FastAPI(title="Chat Channels", version="1.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:8004", "http://127.0.0.1:8004"],
+                   allow_methods=["GET", "POST"], allow_headers=["Content-Type"])
 database = MongoClient(os.environ["MONGODB_URL"]).chat_channels
 channels = database.channels
 events: list[dict] = []

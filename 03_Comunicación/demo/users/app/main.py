@@ -4,10 +4,13 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pymongo import MongoClient
 
 app = FastAPI(title="Chat Users", version="1.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:8004", "http://127.0.0.1:8004"],
+                   allow_methods=["GET", "POST"], allow_headers=["Content-Type"])
 database = MongoClient(os.environ["MONGODB_URL"]).chat_users
 users = database.users
 events: list[dict] = []
@@ -34,6 +37,11 @@ def create_user(body: UserCreate):
     users.insert_one(user.copy())
     publish("chat.user.created", user["id"], user)
     return user
+
+
+@app.get("/api/v1/users")
+def list_users():
+    return list(users.find({}, {"_id": 0}))
 
 
 @app.get("/api/v1/users/{user_id}")

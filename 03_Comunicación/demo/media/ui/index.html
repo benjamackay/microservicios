@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#101a2d" />
+  <title>Media · Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <aside class="rail">
+      <a class="brand-mark" href="#" aria-label="Media chat">m<span>✳</span></a>
+      <button class="rail-button active" title="Mensajes">▤</button>
+      <button class="rail-button" id="showMedia" title="Archivos">▧</button>
+      <div class="rail-spacer"></div>
+      <button class="rail-avatar" id="railAvatar" title="Tu perfil">B</button>
+    </aside>
+
+    <aside class="workspace">
+      <header class="workspace-head">
+        <div><div class="eyebrow">ESPACIO DE TRABAJO</div><button class="workspace-name" id="workspaceName">Chat de equipo <span>⌄</span></button></div>
+        <div class="workspace-controls"><button class="profile-mobile" id="mobileProfile" title="Cambiar usuario">B</button><select id="mobileChannel" class="mobile-channel" aria-label="Seleccionar canal"></select><button class="icon-button" id="newChannel" title="Crear canal">＋</button></div>
+      </header>
+      <label class="search"><span>⌕</span><input id="search" placeholder="Buscar mensajes y archivos" /><kbd>⌘ K</kbd></label>
+      <section class="nav-section">
+        <div class="section-title">CANALES <button id="addChannel" class="tiny-add" title="Crear canal">＋</button></div>
+        <div id="channelList" class="channel-list"></div>
+        <button id="emptyChannel" class="empty-action">＋ <span>Añadir un canal</span></button>
+      </section>
+      <section class="nav-section people-section">
+        <div class="section-title">TU PERFIL</div>
+        <label class="profile-select"><span class="avatar avatar-sm" id="profileAvatar">B</span><select id="userSelect" aria-label="Seleccionar usuario"></select><span class="chevron">⌄</span></label>
+        <button class="empty-action" id="addUser">＋ <span>Crear usuario de prueba</span></button>
+      </section>
+      <div class="workspace-bottom"><span class="status-dot"></span><span>Media está en línea</span><span class="version">v1.0</span></div>
+    </aside>
+
+    <section class="conversation">
+      <header class="conversation-head">
+        <div class="channel-title"><span class="hash">#</span><div><h1 id="channelName">Selecciona un canal</h1><p id="channelSubtitle">Tu equipo, en un solo lugar</p></div></div>
+        <div class="head-actions"><div class="member-stack"><span class="mini-avatar a1">B</span><span class="mini-avatar a2">M</span><span class="mini-avatar a3">+</span></div><span class="head-divider"></span><button class="head-action" id="detailsToggle"><span>ⓘ</span> Detalles</button></div>
+      </header>
+      <div id="messages" class="messages"><div class="welcome"><div class="welcome-icon">✳</div><h2>Tu equipo, en un mismo lugar.</h2><p>Selecciona un canal para ver los mensajes y compartir archivos.</p></div></div>
+      <div id="typingHint" class="typing-hint" aria-live="polite"></div>
+      <form id="composer" class="composer">
+        <div class="composer-box"><div class="composer-toolbar"><button type="button" id="attachButton" class="tool-button" title="Subir archivo">＋</button><span class="toolbar-divider"></span><span class="composer-hint">Mensaje en <b id="composerChannel"># canal</b></span><span class="toolbar-spacer"></span><button type="button" id="createPollButton" class="composer-feature" disabled>▤ Encuesta</button><button type="button" id="requestSummaryButton" class="composer-feature" disabled>✦ Resumir</button></div><textarea id="messageText" rows="1" placeholder="Escribe un mensaje…" disabled></textarea><div class="composer-footer"><span>Enter para enviar · Pega un enlace para generar una vista previa</span><button id="sendButton" class="send-button" disabled aria-label="Enviar mensaje">↑</button></div></div>
+        <input id="fileInput" type="file" hidden accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/plain" />
+      </form>
+    </section>
+
+    <aside class="details" id="detailsPanel">
+      <div class="details-head"><div><div class="eyebrow">PANEL DEL CANAL</div><h2>Media y archivos</h2></div><button class="icon-button close-details" id="closeDetails" aria-label="Cerrar panel">×</button></div>
+      <div class="quota-card"><div class="quota-top"><span>Almacenamiento del canal</span><span id="quotaLabel">—</span></div><div class="quota-track"><div id="quotaBar" class="quota-bar"></div></div><div id="quotaCaption" class="quota-caption">Selecciona un canal para ver la cuota</div></div>
+      <div class="filter-tabs" role="tablist"><button class="filter-tab active" data-filter="ALL">Todo</button><button class="filter-tab" data-filter="IMAGE">Imágenes</button><button class="filter-tab" data-filter="DOCUMENT">Archivos</button><button class="filter-tab" data-filter="LINK">Enlaces</button></div>
+      <div id="mediaGrid" class="media-grid"><div class="media-empty"><span>▧</span><p>Los archivos compartidos en este canal aparecerán aquí.</p></div></div>
+      <button class="upload-wide" id="uploadWide"><span>＋</span> Subir archivo</button>
+      <div class="privacy-note"><span>⌑</span><p>Los adjuntos se guardan en Media y pertenecen a este canal.</p></div>
+    </aside>
+  </main>
+  <div id="toast" class="toast" role="status"></div>
+  <div id="modalRoot"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

@@ -47,6 +47,8 @@ services:
       MONGODB_URL: mongodb://media-mongodb:27017
       USERS_URL: http://users:8000
       CHANNELS_URL: http://channels:8000
+      SUMMARIES_URL: http://summaries:8000
+      POLLS_URL: http://polls-api:8004
       RABBITMQ_URL: amqp://chat:chat@rabbitmq:5672/%2F
       MEDIA_STORAGE: /media-storage
       MAX_FILE_BYTES: ${MAX_FILE_BYTES:-10485760}
@@ -56,12 +58,122 @@ services:
       PREVIEW_MAX_ATTEMPTS: ${PREVIEW_MAX_ATTEMPTS:-3}
     volumes:
       - media-storage:/media-storage
+      - ./media/ui:/app/ui
     depends_on:
       media-mongodb:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    networks: [microsvcs]
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    ports:
+      - "8007:8000"
+    environment:
+      USERS_URL: http://users:8000
+      CHANNELS_URL: http://channels:8000
+      MESSAGES_URL: http://messages:8000
+      SUMMARIES_URL: http://summaries:8000
+      MEDIA_URL: http://media:8000
+      POLLS_URL: http://polls-api:8004
+      GATEWAY_CORS_ORIGINS: http://localhost:8004,http://127.0.0.1:8004
+      GATEWAY_TIMEOUT_SECONDS: "10"
+    restart: unless-stopped
+    networks: [microsvcs]
+
+  summaries:
+    profiles: [summaries]
+    build: ./peers/summaries-service
+    ports:
+      - "8005:8000"
+    environment:
+      MONGODB_URL: mongodb://summaries-mongodb:27017
+      MONGODB_DATABASE: summaries
+      BROKER_URL: amqp://chat:chat@rabbitmq:5672/%2F
+      USERS_URL: http://users:8000
+      CHANNELS_URL: http://channels:8000
+      MESSAGES_URL: http://messages:8000
+      CHAT_EXCHANGE_DURABLE: "true"
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gemini-3.5-flash-lite}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-gemini-3.8-flash}
+    depends_on:
+      summaries-mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [microsvcs]
+
+  summaries-mongodb:
+    image: mongo:7
+    volumes: [summaries-data:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [microsvcs]
+
+  polls-migrate:
+    build: ./peers/polls-service
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://polls:polls-dev-password@polls-postgres:5432/polls
+    depends_on:
+      polls-postgres:
+        condition: service_healthy
+    restart: "no"
+    networks: [microsvcs]
+
+  polls-api:
+    build: ./peers/polls-service
+    ports:
+      - "8006:8004"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://polls:polls-dev-password@polls-postgres:5432/polls
+      MESSAGES_ENABLED: "true"
+      MESSAGES_BASE_URL: http://messages:8000
+      MESSAGES_TIMEOUT_SECONDS: "5"
+      RABBITMQ_URL: amqp://chat:chat@rabbitmq:5672/%2F
+      RABBITMQ_EXCHANGE: polls.events
+      POLL_CLOSE_SCAN_INTERVAL_SECONDS: "1"
+      POLL_RETRY_BASE_SECONDS: "1"
+    depends_on:
+      polls-migrate:
+        condition: service_completed_successfully
+      polls-postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      messages:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8004/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks: [microsvcs]
+
+  polls-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: polls
+      POSTGRES_USER: polls
+      POSTGRES_PASSWORD: polls-dev-password
+    volumes: [polls-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U polls -d polls"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     networks: [microsvcs]
 
   media-mongodb:
@@ -114,6 +226,8 @@ volumes:
   media-data:
   media-storage:
   rabbitmq-data:
+  summaries-data:
+  polls-data:
 
 networks:
   microsvcs:
