@@ -169,12 +169,31 @@ caché y galería LINK. Requiere salida a Internet; se puede elegir otra página
 con `--preview-url https://...` o verificar solo archivos con `--files-only`.
 Deja usuarios, canal, mensaje y metadatos para inspección; elimina el binario.
 
-Las pruebas aisladas usan MongoDB simulado y no requieren Docker. Cubren archivos
-inválidos, cuotas concurrentes, recuperación, caché, eventos duplicados, reintentos,
-OpenGraph, SSRF y outbox. Para comprobar persistencia real, sube un archivo desde
-Swagger, ejecuta `docker compose restart media media-mongodb rabbitmq` y descarga
-el mismo ID al recuperar la salud. Para probar el outbox, detén RabbitMQ, publica
-un mensaje con URL y vuelve a iniciarlo: el mensaje debe responder 201 y el preview
+Las pruebas de servicio aíslan MongoDB con `mongomock` y guardan los binarios en
+directorios temporales; cubren éxito y error para cada endpoint de Media, además
+de cuotas concurrentes, recuperación, caché, reintentos, OpenGraph, SSRF y outbox.
+El contrato Messages → Media consume el evento desde `GET /api/v1/events` de
+Messages, sin leer su base de datos.
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m pytest tests -q
+```
+
+La integración Compose crea usuarios y canales por sus APIs, publica un mensaje
+con URL a través de Messages, espera que Media reciba `chat.message.created` y
+comprueba además la subida y galería de un adjunto. Usa un proyecto, red y
+volúmenes desechables propios, no publica puertos al host y los elimina al terminar:
+
+```sh
+docker compose -f docker-compose.yaml -f media/compose.integration.yaml -p media-integration up --build --abort-on-container-exit --exit-code-from integration-tests integration-tests
+docker compose -f docker-compose.yaml -f media/compose.integration.yaml -p media-integration down -v
+```
+
+Para comprobar persistencia real en el demo, sube un archivo desde Swagger,
+ejecuta `docker compose restart media media-mongodb rabbitmq` y descarga el mismo
+ID al recuperar la salud. Para probar el outbox, detén RabbitMQ, publica un
+mensaje con URL y vuelve a iniciarlo: el mensaje debe responder 201 y el preview
 debe aparecer después de la reconexión.
 
 Referencias de diseño: [confirmaciones RabbitMQ](https://www.rabbitmq.com/docs/confirms)

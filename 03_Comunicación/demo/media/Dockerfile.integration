@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+WORKDIR /workspace/03_Comunicación/demo/media
+COPY media/requirements.txt media/requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements-dev.txt
+COPY media/app ./app
+COPY media/tests ./tests
+COPY media/integration ./integration
+COPY media/ui ./ui
+COPY messages/app /workspace/03_Comunicación/demo/messages/app
+COPY users/app /workspace/03_Comunicación/demo/users/app
+COPY channels/app /workspace/03_Comunicación/demo/channels/app
+CMD ["python", "-m", "pytest", "-q", "integration/test_chat_flow.py"]

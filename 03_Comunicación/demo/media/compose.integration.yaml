@@ -1,0 +1,36 @@
+services:
+  # La prueba usa un proyecto, red y volúmenes propios; no toma puertos del host.
+  users:
+    ports: !reset []
+  channels:
+    ports: !reset []
+  messages:
+    ports: !reset []
+  media:
+    ports: !reset []
+  rabbitmq:
+    ports: !reset []
+
+  integration-tests:
+    build:
+      context: .
+      dockerfile: media/Dockerfile.integration
+    environment:
+      USERS_URL: http://users:8000
+      CHANNELS_URL: http://channels:8000
+      MESSAGES_URL: http://messages:8000
+      MEDIA_URL: http://media:8000
+    depends_on:
+      users:
+        condition: service_started
+      channels:
+        condition: service_started
+      messages:
+        condition: service_started
+      media:
+        condition: service_started
+    networks: [microsvcs]
+
+networks:
+  microsvcs:
+    name: chat-media-integration
